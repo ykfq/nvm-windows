@@ -150,11 +150,16 @@ jobs:
         Write-Host "nvm-noinstall.zip MD5: $hash"
         Get-ChildItem '.dist' | Format-Table Name, Length
 
+    # The staging directory is hidden (`.dist`), and upload-artifact >= 4.4 skips
+    # hidden files/directories unless include-hidden-files is enabled.
+    # This step is a convenience only, so it must never block the Release below.
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: nvm-noinstall-${{ env.VERSION }}
         path: .dist/*
+        include-hidden-files: true
         if-no-files-found: error
 
     - name: Create Release
