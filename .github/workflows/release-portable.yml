@@ -1,0 +1,170 @@
+name: Release (portable)
+
+# Self-contained release pipeline for forks.
+#
+# Unlike the upstream `release.yml` (which requires GPG signing keys, an
+# AUTHOR_BRIDGE_TOKEN for the private author/author-nvm repo and Azure Trusted
+# Signing credentials), this workflow only relies on the automatically provided
+# GITHUB_TOKEN. It builds nvm.exe, packages the portable `nvm-noinstall.zip`
+# distribution and publishes a GitHub Release.
+#
+# Usage:
+#   - push a tag, e.g. `git tag 1.2.3 && git push origin 1.2.3`
+#   - or run this workflow manually (Actions -> Release (portable) -> Run workflow)
+
+on:
+  push:
+    tags:
+      - '[0-9]*'
+      - 'v[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, e.g. 1.2.3 (leave empty to use src/manifest.json)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      GO_VERSION: '1.23'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Determine version
+      shell: pwsh
+      env:
+        REF_TYPE: ${{ github.ref_type }}
+        REF_NAME: ${{ github.ref_name }}
+        INPUT_VERSION: ${{ github.event.inputs.version }}
+      run: |
+        if ($env:REF_TYPE -eq 'tag') {
+          $tag = $env:REF_NAME
+        } elseif ($env:INPUT_VERSION) {
+          $tag = $env:INPUT_VERSION
+        } else {
+          $tag = (Get-Content -Path 'src\manifest.json' -Raw | ConvertFrom-Json).version
+        }
+
+        if (-not $tag) {
+          Write-Error 'Unable to determine the version to build.'
+          exit 1
+        }
+
+        $version = $tag -replace '^v', ''
+        $manifest = (Get-Content -Path 'src\manifest.json' -Raw | ConvertFrom-Json).version
+
+        if ($manifest -ne $version) {
+          Write-Warning "manifest.json version ($manifest) differs from the release version ($version)."
+        }
+
+        Write-Host "Building version $version (tag: $tag)"
+        "VERSION=$version" | Out-File -Append -FilePath $env:GITHUB_ENV
+        "TAG=$tag" | Out-File -Append -FilePath $env:GITHUB_ENV
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '${{ env.GO_VERSION }}'
+        cache-dependency-path: src/go.sum
+
+    - name: Build nvm.exe
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path 'bin' | Out-Null
+        Push-Location 'src'
+        go build -trimpath `
+          -ldflags "-s -w -X main.NvmVersion=$env:VERSION -X nvm/web.nvmversion=$env:VERSION" `
+          -o '..\bin\nvm.exe' .
+        Pop-Location
+
+        Get-Item 'bin\nvm.exe' | Format-List Name, Length, LastWriteTime
+
+    # Cosmetic: embed the nvm icon into the executable. Never fails the build.
+    - name: Apply icon to nvm.exe
+      continue-on-error: true
+      shell: pwsh
+      run: |
+        $zipFile = Join-Path $env:RUNNER_TEMP 'resource_hacker.zip'
+        $toolDir = Join-Path $env:RUNNER_TEMP 'resource_hacker'
+        Invoke-WebRequest -Uri 'https://www.angusj.com/resourcehacker/resource_hacker.zip' -OutFile $zipFile
+        Expand-Archive -Path $zipFile -DestinationPath $toolDir -Force
+        & (Join-Path $toolDir 'ResourceHacker.exe') -open 'bin\nvm.exe' -save 'bin\nvm.exe' -action add -res 'assets\nvm.ico' -mask 'ICONGROUP,MAINICON'
+
+    - name: Verify binary
+      shell: pwsh
+      run: |
+        $reported = (& '.\bin\nvm.exe' version) -join '' -replace '\s', ''
+        Write-Host "nvm.exe reports version: $reported"
+        if ($reported -notlike "*$env:VERSION*") {
+          Write-Error "Version mismatch: expected $env:VERSION but the binary reported '$reported'."
+          exit 1
+        }
+
+    # Mirrors the upstream layout: flatten bin/* + assets/* + LICENSE into a
+    # single folder so that the zip extracts to a flat, portable directory.
+    - name: Stage distribution
+      shell: pwsh
+      run: |
+        $stage = '.tmp'
+        Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path $stage | Out-Null
+        New-Item -ItemType Directory -Force -Path '.dist' | Out-Null
+
+        Get-ChildItem -Path 'bin' -File | ForEach-Object { Copy-Item -Path $_.FullName -Destination $stage }
+        Get-ChildItem -Path 'assets' -File | ForEach-Object { Copy-Item -Path $_.FullName -Destination $stage }
+        Copy-Item -Path 'LICENSE' -Destination $stage
+
+        Write-Host 'Staged files:'
+        Get-ChildItem -Path $stage | Format-Table Name, Length
+
+        $zip = Join-Path (Get-Location) '.dist\nvm-noinstall.zip'
+        Remove-Item -Force $zip -ErrorAction SilentlyContinue
+
+        $sevenZip = 'C:\Program Files\7-Zip\7z.exe'
+        if (Test-Path -Path $sevenZip) {
+          & $sevenZip a -tzip $zip "$stage\*" -mx=9 | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "7-Zip failed with exit code $LASTEXITCODE."
+            exit 1
+          }
+        } else {
+          Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal -Force
+        }
+
+        if (!(Test-Path -Path $zip)) {
+          Write-Error 'nvm-noinstall.zip generation failed.'
+          exit 1
+        }
+
+        $hash = (Get-FileHash -Path $zip -Algorithm MD5).Hash
+        $hash | Out-File -FilePath '.dist\nvm-noinstall.zip.checksum.txt' -Encoding utf8
+
+        Write-Host "nvm-noinstall.zip MD5: $hash"
+        Get-ChildItem '.dist' | Format-Table Name, Length
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: nvm-noinstall-${{ env.VERSION }}
+        path: .dist/*
+        if-no-files-found: error
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.TAG }}
+        name: NVM for Windows ${{ env.VERSION }} (portable)
+        files: .dist/*
+        fail_on_unmatched_files: true
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+        make_latest: true
