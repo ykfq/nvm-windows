@@ -130,7 +130,15 @@ jobs:
 
         $sevenZip = 'C:\Program Files\7-Zip\7z.exe'
         if (Test-Path -Path $sevenZip) {
-          & $sevenZip a -tzip $zip "$stage\*" -mx=9 | Out-Null
+          # Archive from inside the staging directory: 7-Zip stores the paths it
+          # is given, so passing "$stage\*" would put every file under a ".tmp\"
+          # folder inside the zip. The portable distribution must extract flat.
+          Push-Location $stage
+          try {
+            & $sevenZip a -tzip $zip * -mx=9 | Out-Null
+          } finally {
+            Pop-Location
+          }
           if ($LASTEXITCODE -ne 0) {
             Write-Error "7-Zip failed with exit code $LASTEXITCODE."
             exit 1
@@ -143,6 +151,21 @@ jobs:
           Write-Error 'nvm-noinstall.zip generation failed.'
           exit 1
         }
+
+        # Verify the archive is flat (no leading folder) so that extracting it
+        # into a directory really places nvm.exe / install.cmd next to each other.
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+        $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+        $archive.Dispose()
+
+        $nested = @($entries | Where-Object { $_ -match '[/\\]' })
+        if ($nested.Count -gt 0) {
+          Write-Error "nvm-noinstall.zip is not flat; found nested entry '$($nested[0])'."
+          exit 1
+        }
+
+        Write-Host "Archive layout OK: flat zip containing $($entries.Count) files."
 
         $hash = (Get-FileHash -Path $zip -Algorithm MD5).Hash
         $hash | Out-File -FilePath '.dist\nvm-noinstall.zip.checksum.txt' -Encoding utf8
