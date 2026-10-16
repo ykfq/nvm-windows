@@ -56,8 +56,39 @@ type Environment struct {
 	verifyssl       bool
 }
 
-var home = filepath.Clean(os.Getenv("NVM_HOME") + "\\settings.txt")
-var symlink = filepath.Clean(os.Getenv("NVM_SYMLINK"))
+// defaultNvmHome returns NVM_HOME when it is defined. Portable installations
+// can be used immediately after running install.cmd, before the user opens a
+// new terminal, so fall back to the directory that contains nvm.exe.
+func defaultNvmHome() string {
+	if value := strings.TrimSpace(os.Getenv("NVM_HOME")); value != "" {
+		return value
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Dir(exe)
+	}
+
+	return ""
+}
+
+// defaultNvmSymlink returns NVM_SYMLINK when it is defined. Otherwise it uses a
+// sibling "nodejs" directory. Keeping the link outside of NVM_HOME avoids the
+// well-known problems caused by nesting the link inside the NVM root.
+func defaultNvmSymlink(nvmHome string) string {
+	if value := strings.TrimSpace(os.Getenv("NVM_SYMLINK")); value != "" {
+		return value
+	}
+
+	if nvmHome != "" {
+		return filepath.Join(filepath.Dir(nvmHome), "nodejs")
+	}
+
+	return ""
+}
+
+var nvmHome = defaultNvmHome()
+var home = filepath.Clean(filepath.Join(nvmHome, "settings.txt"))
+var symlink = filepath.Clean(defaultNvmSymlink(nvmHome))
 
 var env = &Environment{
 	settings:        home,
@@ -1072,7 +1103,22 @@ func isSymlink(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return info.Mode()&os.ModeSymlink != 0, nil
+
+	// Go 1.23+ reports NTFS junctions/mount points as ModeIrregular instead of
+	// ModeSymlink. NVM uses junctions for non-admin portable installs, so treat
+	// reparse points as links.
+	if info.Mode()&os.ModeSymlink != 0 {
+		return true, nil
+	}
+
+	ptr, perr := syscall.UTF16PtrFromString(path)
+	if perr == nil {
+		if attrs, aerr := syscall.GetFileAttributes(ptr); aerr == nil && attrs&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func use(version string, cpuarch string, reload ...bool) {
@@ -1191,21 +1237,13 @@ func use(version string, cpuarch string, reload ...bool) {
 			}
 		}
 
-		// Create new symlink
+		// Create the new link. Prefer an NTFS directory junction because it
+		// does not require administrative privileges when NVM_SYMLINK is in a
+		// user-writable location; fall back to an elevated directory symlink.
 		var ok bool
-		// ok, err = runElevated(fmt.Sprintf(`"%s" cmd /C mklink /D "%s" "%s"`, filepath.Join(env.root, "elevate.cmd"), filepath.Clean(env.symlink), filepath.Join(env.root, "v"+version)))
-		ok, err = elevatedRun("mklink", "/D", filepath.Clean(env.symlink), filepath.Join(env.root, "v"+version))
+		ok, err = createLink(filepath.Join(env.root, "v"+version), filepath.Clean(env.symlink))
 		if err != nil {
-			if strings.Contains(err.Error(), "not have sufficient privilege") || strings.Contains(strings.ToLower(err.Error()), "access is denied") {
-				ok, err = elevatedRun("mklink", "/D", filepath.Clean(env.symlink), filepath.Join(env.root, "v"+version))
-				if err != nil {
-					ok = false
-					status <- Status{Err: err, Done: true}
-					// fmt.Println(fmt.Sprint(err)) // + ": " + _stderr.String())
-				} else {
-					ok = true
-				}
-			} else if strings.Contains(err.Error(), "file already exists") {
+			if strings.Contains(err.Error(), "file already exists") {
 				err = validSymlink(env.symlink)
 				if err != nil {
 					status <- Status{Err: err, Done: true}
@@ -1228,7 +1266,7 @@ func use(version string, cpuarch string, reload ...bool) {
 			}
 		}
 		if !ok {
-			status <- Status{Err: fmt.Errorf("failed to elevate permissions to create symlink"), Done: true}
+			status <- Status{Err: fmt.Errorf("failed to create link %s", filepath.Clean(env.symlink)), Done: true}
 		}
 
 		// Use the assigned CPU architecture
@@ -1568,7 +1606,7 @@ func checkLocalEnvironment() {
 	}
 
 	out := "none\n(run \"nvm use <version>\" to activate a version)\n"
-	output, err := exec.Command(os.Getenv("NVM_SYMLINK")+"\\node.exe", "-v").Output()
+	output, err := exec.Command(filepath.Join(env.symlink, "node.exe"), "-v").Output()
 	if err == nil {
 		out = string(output)
 	}
@@ -1586,7 +1624,7 @@ func checkLocalEnvironment() {
 		authorNvmVersion = strings.TrimSpace(string(valueBytes))
 	}
 
-	nvmhome := os.Getenv("NVM_HOME")
+	nvmhome := nvmHome
 	mirrors := "No mirrors configured"
 	if len(env.node_mirror) > 0 && len(env.npm_mirror) > 0 {
 		mirrors = env.node_mirror + " (node) and " + env.npm_mirror + " (npm)"
@@ -1605,29 +1643,29 @@ func checkLocalEnvironment() {
 		problems = append(problems, "NVM_HOME and NVM_SYMLINK cannot be the same value ("+symlink+"). Change NVM_SYMLINK.")
 	}
 
-	fileInfo, err := os.Lstat(symlink)
+	_, err = os.Lstat(symlink)
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Println("NVM_SYMLINK does not exist yet. This is auto-created when \"nvm use\" is run.")
 		} else {
 			problems = append(problems, "Could not determine if NVM_SYMLINK is actually a symlink: "+err.Error())
 		}
-	} else {
-		if fileInfo.Mode()&os.ModeSymlink != 0 {
-			targetPath, err := os.Readlink(symlink)
+	} else if linked, lerr := isSymlink(symlink); lerr == nil && linked {
+		targetPath, err := os.Readlink(symlink)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("SYMLINK_READ Error: %v", err))
+		} else {
+			targetFileInfo, err := os.Lstat(targetPath)
 			if err != nil {
 				problems = append(problems, fmt.Sprintf("SYMLINK_READ Error: %v", err))
-			} else {
-				targetFileInfo, err := os.Lstat(targetPath)
-				if err != nil {
-					problems = append(problems, fmt.Sprintf("SYMLINK_READ Error: %v", err))
-				} else if !targetFileInfo.Mode().IsDir() {
-					problems = append(problems, "NVM_SYMLINK is a symlink linking to a file instead of a directory.")
-				}
+			} else if !targetFileInfo.Mode().IsDir() {
+				problems = append(problems, "NVM_SYMLINK is a symlink linking to a file instead of a directory.")
 			}
-		} else {
-			problems = append(problems, "NVM_SYMLINK ("+symlink+") is not a valid symlink.")
 		}
+	} else if lerr != nil {
+		problems = append(problems, "Could not determine if NVM_SYMLINK is actually a symlink: "+lerr.Error())
+	} else {
+		problems = append(problems, "NVM_SYMLINK ("+symlink+") is not a valid symlink.")
 	}
 
 	if strings.Contains(symlink, home) {
@@ -1874,6 +1912,33 @@ func updateRootDir(path string) {
 	}
 }
 
+// createLink links link to target, preferring an NTFS directory junction.
+// Junctions can be created by standard users in locations they can write,
+// whereas directory symlinks require SeCreateSymbolicLinkPrivilege
+// (administrator or Developer Mode). Falls back to the legacy symlink path,
+// which attempts elevation if necessary.
+func createLink(target string, link string) (bool, error) {
+	// If something already exists at the link path, don't fall through to an
+	// elevated symlink. The caller decides whether the existing entry is a
+	// valid NVM link and can be replaced.
+	if _, err := os.Lstat(link); err == nil {
+		return false, errors.New("file already exists: " + link)
+	}
+
+	ok, err := run("cmd", nil, "/C", "mklink", "/J", link, target)
+	if err == nil {
+		return ok, nil
+	}
+
+	// Do not trigger an unnecessary UAC prompt when nvm use is simply
+	// replacing an existing link; the caller handles that case.
+	if strings.Contains(strings.ToLower(err.Error()), "already exists") {
+		return false, err
+	}
+
+	return elevatedRun("mklink", "/D", link, target)
+}
+
 func elevatedRun(name string, arg ...string) (bool, error) {
 	ok, err := run("cmd", nil, append([]string{"/C", name}, arg...)...)
 	if err != nil {
@@ -1945,10 +2010,11 @@ func runElevated(command string, forceUAC ...bool) (bool, error) {
 }
 
 func saveSettings() {
-	content := "root: " + strings.Trim(encode(env.root), " \n\r") + "\r\narch: " + strings.Trim(encode(env.arch), " \n\r") + "\r\nproxy: " + strings.Trim(encode(env.proxy), " \n\r") + "\r\noriginalpath: " + strings.Trim(encode(env.originalpath), " \n\r") + "\r\noriginalversion: " + strings.Trim(encode(env.originalversion), " \n\r")
+	content := "root: " + strings.Trim(encode(env.root), " \n\r") + "\r\npath: " + strings.Trim(encode(env.symlink), " \n\r") + "\r\narch: " + strings.Trim(encode(env.arch), " \n\r") + "\r\nproxy: " + strings.Trim(encode(env.proxy), " \n\r") + "\r\noriginalpath: " + strings.Trim(encode(env.originalpath), " \n\r") + "\r\noriginalversion: " + strings.Trim(encode(env.originalversion), " \n\r")
 	content = content + "\r\nnode_mirror: " + strings.Trim(encode(env.node_mirror), " \n\r") + "\r\nnpm_mirror: " + strings.Trim(encode(env.npm_mirror), " \n\r")
 	ioutil.WriteFile(env.settings, []byte(content), 0644)
 	os.Setenv("NVM_HOME", strings.Trim(encode(env.root), " \n\r"))
+	os.Setenv("NVM_SYMLINK", strings.Trim(encode(env.symlink), " \n\r"))
 }
 
 func getProcessPermissions() (admin bool, elevated bool, err error) {
@@ -2009,6 +2075,14 @@ func setup() {
 
 	if val, ok := m["root"]; ok {
 		env.root = filepath.Clean(val)
+	}
+	if val, ok := m["path"]; ok {
+		// The NVM_SYMLINK environment variable wins when it is explicitly
+		// defined. Otherwise honor the portable settings.txt value.
+		if strings.TrimSpace(os.Getenv("NVM_SYMLINK")) == "" && strings.TrimSpace(val) != "" {
+			env.symlink = filepath.Clean(val)
+			symlink = env.symlink
+		}
 	}
 	if val, ok := m["originalpath"]; ok {
 		env.originalpath = filepath.Clean(val)
