@@ -14,38 +14,16 @@
 _The original [nvm](https://github.com/nvm-sh/nvm) is a completely separate project for Mac/Linux only._ This project uses an entirely different philosophy and is not just a clone of nvm. Details are listed in [Why another version manager?](#bulb-why-another-version-manager) and [what&#39;s the big difference?](#bulb-whats-the-big-difference).
 </details>
 
-[![Download Latest Now](https://img.shields.io/badge/-Download%20Now!-%2322A6F2)](https://github.com/coreybutler/nvm-windows/releases) [![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/coreybutler/nvm-windows?label=Latest%20Release&style=social&x=1)]((https://github.com/coreybutler/nvm-windows/releases)) ![GitHub Release Date](https://img.shields.io/github/release-date/coreybutler/nvm-windows?label=Released&style=social) ![GitHub all releases](https://img.shields.io/github/downloads/coreybutler/nvm-windows/total?label=Downloads&style=social) [![Discuss](https://img.shields.io/badge/-Discuss-blue)](https://github.com/coreybutler/nvm-windows/discussions) [![Twitter URL](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Fintent%2Ftweet%3Fhashtags%3Dnodejs%26original_referer%3Dhttp%253A%252F%252F127.0.0.1%253A91%252F%26text%3DCheck%2520out%2520NVM%2520for%2520Windows%21%26tw_p%3Dtweetbutton%26url%3Dhttp%253A%252F%252Fgithub.com%252Fcoreybutler%252Fnvm-windows%26via%3Dgoldglovecb)](https://twitter.com/intent/tweet?hashtags=nodejs&original_referer=http%3A%2F%2F127.0.0.1%3A91%2F&text=Check%20out%20NVM%20for%20Windows!&tw_p=tweetbutton&url=http%3A%2F%2Fgithub.com%2Fcoreybutler%2Fnvm-windows&via=goldglovecb)
-<br/>
-[![Download Stable](https://img.shields.io/badge/-Download%20Stable-%2322A6F2)](https://github.com/coreybutler/nvm-windows/releases/tag/1.1.12) [![GitHub tag (stable SemVer)](https://img.shields.io/badge/Stable%20Version-v1.1.12-1?style=social)]((https://github.com/coreybutler/nvm-windows/releases/tag/1.1.12/))
-<details>
-<summary><b>Latest vs Stable?</b></summary>
-  
-The latest version (v1.2.x) is a [transition version]([https://](https://opensource.author.io/nvm-for-windows-v120)) as we complete work on [Runtime](https://github.com/coreybutler/nvm-windows/wiki/Runtime), the successor to NVM for Windows. However; there is a known bug that may impact some users when installing old (EOL) versions of Node.js. The last stable version supports most EOL versions.
-
-Some companies need very specific features of both versions, which is not possible with today's public releases. While we recommend waiting for Runtime (anticipated March release), if you need a private release, contact support@author.io to arrange a paid support contract.
-</details>
-</div>
-
-<div align="center">
-<a href="https://trendshift.io/repositories/4201" target="_blank"><img src="https://trendshift.io/api/badge/repositories/4201" alt="coreybutler%2Fnvm-windows | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+[![Download Latest Now](https://img.shields.io/badge/-Download%20Now!-%2322A6F2)](https://github.com/ykfq/nvm-windows/releases) [![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/ykfq/nvm-windows?label=Latest%20Release&style=social&x=1)](https://github.com/ykfq/nvm-windows/releases) ![GitHub Release Date](https://img.shields.io/github/release-date/ykfq/nvm-windows?label=Released&style=social) ![GitHub all releases](https://img.shields.io/github/downloads/ykfq/nvm-windows/total?label=Downloads&style=social) [![Discuss](https://img.shields.io/badge/-Discuss-blue)](https://github.com/coreybutler/nvm-windows/discussions)
 </div>
 
 <div align="center"><b>Running into issues?</b> See the <a href="https://github.com/coreybutler/nvm-windows/wiki/Common-Issues">common issues wiki</a>.</div>
-
-<br/>
-<table style="background-color:red;padding:6px;border-radius:3px;">
-  <tr><td>
-    <h3>Seeking Feedback:</h3>
-    We're working on <a href="https://github.com/coreybutler/nvm-windows/wiki/Runtime">Runtime (rt)</a>, the successor to NVM For Windows. Please contribute by taking a minute to complete <a href="https://t.co/oGqQCM9FPx">this form</a>. Thank you!
-    <h3></h3>
-  </td></tr>
-</table>
 
 ## Overview
 
 Manage multiple installations of node.js on a Windows computer.
 
-**tl;dr** Similar (not identical) to [nvm](https://github.com/creationix/nvm), but for Windows. Has an installer. [Download Now](https://github.com/coreybutler/nvm-windows/releases)!
+**tl;dr** Similar (not identical) to [nvm](https://github.com/creationix/nvm), but for Windows. [Download Now](https://github.com/ykfq/nvm-windows/releases)!
 
 This has always been a node version manager, not an io.js manager, so there is no back-support for io.js. Node 4+ is supported. Running `nvm install` or `nvm use` does **not** require administrative rights: versions are switched using NTFS junctions and every setting lives in your own user account, so a normal, non-elevated shell is all you need (see [Portable, no-admin installation](#portable-no-admin-installation)). To install the latest version of Node.js, run `nvm install latest`. To install the latest stable version, run `nvm install lts`.
 
@@ -191,9 +169,7 @@ Please note that any global npm modules you may have installed are **not** share
 
 Users have reported some problems using antivirus, specifically McAfee. It appears the antivirus software is manipulating access to the VBScript engine. See [issue #133](https://github.com/coreybutler/nvm-windows/issues/133) for details and resolution.
 
-**v1.1.8 is not code signed**, but all other versions are signed by [Ecor Ventures LLC](https://ecorventures.com)/[Author.io](https://author.io). This should help prevent false positives with most antivirus software.
-
-> v1.1.8+ was not code signed due to an expired certificate (see the [release notes](https://github.com/coreybutler/nvm-windows/releases/tag/1.1.8) for reasons). **v1.1.9 _is_ code signed** thanks to [ajyong](https://github.com/ajyong), who sponsored the new certificate.
+The binaries published by this fork are **not code signed**, so SmartScreen or your antivirus software may warn you the first time you run `nvm.exe`. If you want to be certain a downloaded copy is intact, compare it against the `nvm-noinstall.zip.checksum.txt` published next to it on the [releases page](https://github.com/ykfq/nvm-windows/releases).
 
 ### Using Yarn
 
@@ -234,11 +210,9 @@ The second option is to use a symlink. This concept requires putting the symlink
 
 In order to create/modify a symlink, you must be running as an admin, and you must get around Windows UAC (that annoying prompt). **This fork sidesteps that problem entirely: versions are switched with NTFS junctions instead of symlinks, and a junction can be created by a standard user, so no elevation and no UAC prompt are involved** (see [Portable, no-admin installation](#portable-no-admin-installation)). As a result, NVM for Windows maintains a single link that is put in the `PATH` during installation only. Switching to different versions of node is a matter of switching the symlink target. As a result, this utility does **not** require you to run `nvm use x.x.x` every time you open a console window. When you _do_ run `nvm use x.x.x`, the active version of node is automatically updated across all open console windows. It also persists between system reboots, so you only need to use nvm when you want to make a change.
 
-NVM for Windows comes with an installer, courtesy of a byproduct of my work on [Fenix Web Server](https://preview.fenixwebserver.com).
-
 Overall, this project brings together some ideas, a few battle-hardened pieces of other modules, and support for newer versions of node.
 
-NVM for Windows recognizes the "latest" versions using a [list](https://nodejs.org/download/release/index.json) provided by the Node project. Version 1.1.1+ use this list. Before this list existed, I was scraping releases and serving it as a standalone [data feed](https://github.com/coreybutler/nodedistro). This list was used in versions 1.1.0 and prior, but is now deprecated.
+NVM for Windows recognizes the "latest" versions using a [list](https://nodejs.org/download/release/index.json) provided by the Node project. Version 1.1.1+ use this list; before it existed, releases were scraped into a standalone data feed, which was used in versions 1.1.0 and prior and is now deprecated.
 
 ## Motivation
 
@@ -255,7 +229,6 @@ Thanks to everyone who has submitted issues on and off Github, made suggestions,
 - [@vkbansal](https://github.com/vkbansal), who provided significant early feedback throughout the early releases.
 - [@rainabba](https://github.com/rainabba) and [@sullivanpt](https://github.com/sullivanpt) for getting Node v4 support integrated.
 - [@s-h-a-d-o-w](https://github.com/s-h-a-d-o-w) who resolved the longstanding space escaping issue in path names ([#355](https://github.com/coreybutler/nvm-windows/pull/355)).
-- [ajyong](https://github.com/ajyong) who sponsored the code signing certificate in late 2021.
 
 <br/>
 
