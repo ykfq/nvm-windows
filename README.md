@@ -1,6 +1,9 @@
-<div align="center"><h2>We are working full time on Author, including <a href="https://github.com/coreybutler/nvm-windows/wiki/Runtime">Runtime</a>, the successor to NVM for Windows.</h2>Complete <a href="https://t.co/oGqQCM9FPx">this form</a> to provide your thoughts and sign up for progress updates.<br/><br/>Updates will also be posted on the <A href="https://linkedin.com/company/authorsoftware">Author Software LinkedIn Page</a>.</div>
-<br/><br/>
 <h1 align="center">NVM for Windows</h1>
+
+> [!IMPORTANT]
+> **This fork fully supports non-administrator accounts.** No admin rights, no elevation and no UAC prompt are needed to install it or to use it.
+>
+> The portable build configures everything inside *your own* user account — `NVM_HOME`, `NVM_SYMLINK` and `PATH` are written to `HKCU\Environment`, never machine-wide — and it switches Node.js versions using NTFS **junctions** instead of symlinks, which Windows allows a standard user to create. See [Portable, no-admin installation](#portable-no-admin-installation).
 
 <div align="center">
   The <a href="https://docs.microsoft.com/en-us/windows/nodejs/setup-on-windows">Microsoft</a>/<a href="https://docs.npmjs.com/cli/v9/configuring-npm/install#windows-node-version-managers">npm</a>/<a href="https://cloud.google.com/nodejs/docs/setup#installing_nvm">Google</a> recommended Node.js version manager for <em>Windows</em>.<br/>
@@ -27,31 +30,6 @@ Some companies need very specific features of both versions, which is not possib
 <a href="https://trendshift.io/repositories/4201" target="_blank"><img src="https://trendshift.io/api/badge/repositories/4201" alt="coreybutler%2Fnvm-windows | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 
-<h5 align="center">Sponsors</h5>
-
-<div align="center">
-  <table cellpadding="5" cellspacing="0" border="0" align="center">
-    <tr>
-      <td><a href="https://linkedin.com/company/authorsoftware"><img src="https://github.com/coreybutler/staticassets/blob/master/sponsors/logo_author_software_flat.png" width="200px"/></a></td>
-      <td width="33%" align="center"><a href="https://ecorventures.com"><img src="https://avatars.githubusercontent.com/u/8259581?s=200&v=4" height="30px"/></a></td>
-      <td width="33%" align="center"><a href="https://github.com/microsoft"><img src="https://user-images.githubusercontent.com/770982/195955265-5c3dca78-7140-4ec6-b05a-f308518643ee.png" height="30px"/></a></td>
-    </tr>
-    <tr>
-      <td colspan="4" align="center">
-        <a href="https://github.com/sponsors/coreybutler"><img src="https://img.shields.io/github/sponsors/coreybutler?label=Individual%20Sponsors&logo=github&style=social"/></a>
-        &nbsp;<a href="https://github.com/sponsors/coreybutler"><img src="https://img.shields.io/badge/-Become%20a%20Sponsor-yellow"/></a>
-      </td>
-    </tr>
-    <tr>
-      <td colspan="4" align="center">
-        <img src="https://github.blog/wp-content/uploads/2020/09/github-stars-logo_Color.png" width="50"/><br/>
-        <b>Can't sponsor?</b><br/>Consider <a href="https://stars.github.com/nominate/" target="_blank">nominating @coreybutler for a Github star</a>.
-      </td>
-    </tr>
-  </table>
-</div>
-<br/>
-
 <div align="center"><b>Running into issues?</b> See the <a href="https://github.com/coreybutler/nvm-windows/wiki/Common-Issues">common issues wiki</a>.</div>
 
 <br/>
@@ -69,7 +47,7 @@ Manage multiple installations of node.js on a Windows computer.
 
 **tl;dr** Similar (not identical) to [nvm](https://github.com/creationix/nvm), but for Windows. Has an installer. [Download Now](https://github.com/coreybutler/nvm-windows/releases)!
 
-This has always been a node version manager, not an io.js manager, so there is no back-support for io.js. Node 4+ is supported. Remember when running `nvm install` or `nvm use`, Windows usually requires administrative rights (to create symlinks). To install the latest version of Node.js, run `nvm install latest`. To install the latest stable version, run `nvm install lts`.
+This has always been a node version manager, not an io.js manager, so there is no back-support for io.js. Node 4+ is supported. Running `nvm install` or `nvm use` does **not** require administrative rights: versions are switched using NTFS junctions and every setting lives in your own user account, so a normal, non-elevated shell is all you need (see [Portable, no-admin installation](#portable-no-admin-installation)). To install the latest version of Node.js, run `nvm install latest`. To install the latest stable version, run `nvm install lts`.
 
 ![NVM for Windows](https://github.com/coreybutler/staticassets/raw/master/images/nvm-1.1.8-screenshot.jpg)
 
@@ -101,11 +79,71 @@ Alternatively, copy the settings to the user config `%UserProfile%\.npmrc`. Dele
 
 #### Install nvm-windows
 
-Use the [latest installer](https://github.com/coreybutler/nvm/releases) (comes with an uninstaller). Alternatively, follow the  [manual installation](https://github.com/coreybutler/nvm-windows/wiki#manual-installation) guide.
+Two ways to install:
+
+* **No administrator rights? Use the portable build.** Download `nvm-noinstall.zip` from the [releases page](https://github.com/ykfq/nvm-windows/releases) and follow [Portable, no-admin installation](#portable-no-admin-installation) below.
+* **With administrator rights**, you can also use the [latest installer](https://github.com/coreybutler/nvm/releases) (comes with an uninstaller) or follow the  [manual installation](https://github.com/coreybutler/nvm-windows/wiki#manual-installation) guide.
 
 _If NVM4W doesn't appear to work immediately after installation, restart the terminal/powershell (not the whole computer)._
 
 ![NVM for Windows Installer](https://github.com/coreybutler/staticassets/raw/master/images/nvm-installer.jpg)
+
+#### Portable, no-admin installation
+
+This is the recommended way to install NVM for Windows when you do **not** have administrator rights. Nothing in this path triggers a UAC prompt, and nothing is written outside your own user account.
+
+1. Download **`nvm-noinstall.zip`** from the [releases page](https://github.com/ykfq/nvm-windows/releases) and extract it to a folder you can write to, for example `%USERPROFILE%\PortableApps\nvm`.
+
+2. Run **`install.cmd`** from that folder (double-click it, or run it in an ordinary Command Prompt). It is interactive and asks for two paths:
+
+   - `NVM_PATH` — the folder you extracted the files into; this becomes `NVM_HOME`, e.g. `C:\Users\me\PortableApps\nvm`.
+   - `NVM_SYMLINK` — the folder where the link to the *active* Node.js will be created, e.g. `C:\Users\me\PortableApps\nodejs`. It must not already exist as a real directory.
+
+   Press **Enter** at each prompt to accept the default, which is derived from the folder you extracted into.
+
+3. **Open a new terminal** so the environment changes take effect, then install a version:
+
+   ```
+   nvm install lts
+   nvm use lts
+   node -v
+   ```
+
+Everything `install.cmd` does happens inside **your own user account**:
+
+| What | How | Elevation |
+|---|---|---|
+| `NVM_HOME`, `NVM_SYMLINK` | `setx` **without** `/M` → `HKCU\Environment` | none |
+| `PATH` | `setuserenv.vbs` appends `%NVM_HOME%;%NVM_SYMLINK%` to the *user* `PATH`, written as `REG_EXPAND_SZ` so the variables expand | none |
+| nvm's own configuration | `settings.txt` next to `nvm.exe` (`root:`, `path:`, `arch:`, mirrors) | none |
+| switching versions | `mklink /J` → an NTFS **junction** | none |
+
+> [!NOTE]
+> Older releases shelled out to `mklink /D`, which creates a real symlink and therefore required an Administrator shell. Version switching now creates a **junction** instead: the effect on `PATH` is the same, but a standard user is allowed to create one. An install-time `PATH.txt` and `settings.txt` are written next to `nvm.exe` to help with troubleshooting.
+
+To undo the installation, delete the folder and remove `%NVM_HOME%` and `%NVM_SYMLINK%` from your user `PATH` — the `unsetuserenv.vbs` script in the same folder does exactly that.
+
+#### Users in China: use a mirror
+
+Downloads from `nodejs.org` are slow or blocked in mainland China. Point nvm at a mirror once and every later `nvm install` will use it:
+
+```
+nvm node_mirror https://npmmirror.com/mirrors/node
+nvm npm_mirror  https://npmmirror.com/mirrors/npm
+```
+
+`node_mirror` serves the Node.js binaries; `npm_mirror` serves the npm release that nvm installs alongside Node.js. Both are saved in nvm's `settings.txt`, so they apply to every new terminal as well. Run either command with a blank URL to go back to the official servers:
+
+```
+nvm node_mirror
+nvm npm_mirror
+```
+
+npm *packages* are still fetched from the npm registry, so to speed those up as well:
+
+```
+npm config set registry https://registry.npmmirror.com
+```
 
 #### Reinstall any global utilities
 
@@ -126,7 +164,7 @@ npm install -g yarn
 
 ### Usage
 
-**nvm-windows runs in an Admin shell**. You'll need to start `powershell` or Command Prompt as Administrator to use nvm-windows
+**No Administrator shell is required.** An ordinary, non-elevated `powershell` or Command Prompt is enough to use nvm-windows — see [Portable, no-admin installation](#portable-no-admin-installation).
 
 NVM for Windows is a command line tool. Simply type `nvm` in the console for help. The basic commands are:
 
@@ -194,7 +232,7 @@ The control mechanism is also quite different. There are two general ways to sup
 
 The second option is to use a symlink. This concept requires putting the symlink in the system `PATH`, then updating its target to the node installation directory you want to use. This is a straightforward approach, and seems to be what people recommend.... until they realize just how much of a pain symlinks are on Windows. This is why it hasn't happened before.
 
-In order to create/modify a symlink, you must be running as an admin, and you must get around Windows UAC (that annoying prompt). Luckily, this is a challenge I already solved with some helper scripts in [node-windows](https://github.com/coreybutler/node-windows). As a result, NVM for Windows maintains a single symlink that is put in the system `PATH` during installation only. Switching to different versions of node is a matter of switching the symlink target. As a result, this utility does **not** require you to run `nvm use x.x.x` every time you open a console window. When you _do_ run `nvm use x.x.x`, the active version of node is automatically updated across all open console windows. It also persists between system reboots, so you only need to use nvm when you want to make a change.
+In order to create/modify a symlink, you must be running as an admin, and you must get around Windows UAC (that annoying prompt). **This fork sidesteps that problem entirely: versions are switched with NTFS junctions instead of symlinks, and a junction can be created by a standard user, so no elevation and no UAC prompt are involved** (see [Portable, no-admin installation](#portable-no-admin-installation)). As a result, NVM for Windows maintains a single link that is put in the `PATH` during installation only. Switching to different versions of node is a matter of switching the symlink target. As a result, this utility does **not** require you to run `nvm use x.x.x` every time you open a console window. When you _do_ run `nvm use x.x.x`, the active version of node is automatically updated across all open console windows. It also persists between system reboots, so you only need to use nvm when you want to make a change.
 
 NVM for Windows comes with an installer, courtesy of a byproduct of my work on [Fenix Web Server](https://preview.fenixwebserver.com).
 
