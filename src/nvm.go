@@ -680,11 +680,6 @@ func install(version string, cpuarch string) {
 			return
 		}
 
-		if checkVersionExceedsLatest(version) {
-			status <- Status{Err: fmt.Errorf("Node.js v%s is not yet released or is not available for download yet.", version)}
-			return
-		}
-
 		if cpuarch == "64" && !web.IsNode64bitAvailable(version) {
 			status <- Status{Err: fmt.Errorf("Node.js v%s is only available in 32-bit.", version)}
 			return
@@ -693,6 +688,15 @@ func install(version string, cpuarch string) {
 		// Check to see if the version is already installed
 		if !node.IsVersionInstalled(env.root, version, cpuarch) {
 			if !node.IsVersionAvailable(version) {
+				// The version is absent from the mirror's index.json. Only now
+				// is it worth distinguishing "newer than anything released"
+				// from "genuinely unknown", by comparing it with the newest
+				// version the mirror advertises.
+				if checkVersionExceedsLatest(version) {
+					status <- Status{Err: fmt.Errorf("Node.js v%s is not yet released or is not available for download yet.", version)}
+					return
+				}
+
 				url := web.GetFullNodeUrl("index.json")
 				status <- Status{Err: fmt.Errorf("Version %s is not available.\n\nThe complete list of available versions can be found at %s", version, url)}
 				return
@@ -1806,30 +1810,59 @@ func help() {
 // ===============================================================
 // BEGIN | Utility functions
 // ===============================================================
+
+// checkVersionExceedsLatest reports whether the requested version is newer than
+// the newest release the configured node mirror advertises.
+//
+// Callers must only reach this after node.IsVersionAvailable() returned false,
+// so this function is never used to block a version the mirror actually offers;
+// it only selects a friendlier error message.
+//
+// The newest release is taken from the mirror's index.json (the same list that
+// `nvm list available` prints) and NOT from "<mirror>/latest/SHASUMS256.txt".
+// Mirrors routinely leave that "latest" directory stale: npmmirror still served
+// node-v24.9.0 there long after 24.22.0 (and 26.x) had been released, so
+// `nvm install 24.22.0` failed with "not yet released" even though the version
+// was downloadable. Comparing against the index.json list is authoritative.
 func checkVersionExceedsLatest(version string) bool {
-	//content := web.GetRemoteTextFile("http://nodejs.org/dist/latest/SHASUMS256.txt")
-	url := web.GetFullNodeUrl("latest/SHASUMS256.txt")
-	content, err := web.GetRemoteTextFile(url)
+	requested, err := semver.Make(version)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return false
 	}
-	re := regexp.MustCompile("node-v(.+)+msi")
-	reg := regexp.MustCompile("node-v|-[xa].+")
-	latest := reg.ReplaceAllString(re.FindString(content), "")
-	var vArr = strings.Split(version, ".")
-	var lArr = strings.Split(latest, ".")
-	for index := range lArr {
-		lat, _ := strconv.Atoi(lArr[index])
-		ver, _ := strconv.Atoi(vArr[index])
-		//Should check for valid input (checking for conversion errors) but this tool is made to trust the user
-		if ver < lat {
-			return false
-		} else if ver > lat {
-			return true
+
+	latest := latestAvailableVersion()
+	if latest == "" {
+		// Without a reference version we cannot claim the request is too new.
+		return false
+	}
+
+	newest, err := semver.Make(latest)
+	if err != nil {
+		return false
+	}
+
+	return requested.GT(newest)
+}
+
+// latestAvailableVersion returns the highest version advertised by the
+// configured node mirror, or an empty string when it cannot be determined.
+func latestAvailableVersion() string {
+	all, _, _, _, _, _ := node.GetAvailable()
+
+	latest := ""
+	var latestVersion semver.Version
+	for _, candidate := range all {
+		current, err := semver.Make(candidate)
+		if err != nil {
+			continue
+		}
+		if latest == "" || current.GT(latestVersion) {
+			latest = candidate
+			latestVersion = current
 		}
 	}
-	return false
+
+	return latest
 }
 
 func cleanVersion(version string) string {
